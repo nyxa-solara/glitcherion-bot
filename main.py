@@ -1,9 +1,7 @@
 
 import os
-import asyncio
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from flask import Flask, request
 import logging
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -20,33 +18,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 application.add_handler(CommandHandler("start", start))
 
-web_app = Flask(__name__)
-
-@web_app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    logging.info(">> Webhook recibido por Flask.")
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    asyncio.run(application.process_update(update))
-    return "ok"
-
-@web_app.route("/")
-def home():
-    return f"{BOT_NAME} está orbitando... 🚀"
-
 if __name__ == "__main__":
-    import threading
-    import time
-
-    def run_telegram():
-        logging.info(">> Iniciando Telegram Webhook (modo async).")
-        asyncio.run(application.initialize())
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=int(os.environ.get("PORT", 10000)),
-            webhook_url=f"https://{os.environ['RENDER_EXTERNAL_URL']}/{TOKEN}"
-        )
-
-    logging.info(">> Lanzando Flask y Telegram...")
-    threading.Thread(target=run_telegram).start()
-    time.sleep(2)
-    web_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    logging.info(">> Iniciando Glitcherion en modo polling...")
+    application.run_polling()
