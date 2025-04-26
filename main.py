@@ -26,7 +26,7 @@ web_app = Flask(__name__)
 def webhook():
     logging.info(">> Webhook recibido por Flask.")
     update = Update.de_json(request.get_json(force=True), application.bot)
-    asyncio.create_task(application.process_update(update))
+    asyncio.run(application.process_update(update))
     return "ok"
 
 @web_app.route("/")
