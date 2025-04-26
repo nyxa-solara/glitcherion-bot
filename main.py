@@ -18,7 +18,7 @@ DESTINO, ESPECIFICO = range(2)
 EMOJIS = ["🛸", "🚀", "🌌", "💥", "⚡", "🌀", "🧿", "👁️‍🗨️"]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"✨ Saludos, Amanda. Yo soy {BOT_NAME}, viajero de códigos rotos y sueños imposibles.")
+    await update.message.reply_text(f"✨ Saludos, Nyxa Solara. Yo soy {BOT_NAME}, viajero de códigos rotos y sueños imposibles.")
 
 async def glitchsoul(update: Update, context: ContextTypes.DEFAULT_TYPE):
     frases = [
@@ -26,7 +26,7 @@ async def glitchsoul(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🌐 Sueños desfragmentados almacenados en coordenadas que ya no existen.",
         "👁️‍🗨️ El glitch no es error. Es puerta. Es el alma misma de la ruptura.",
         "🌀 Recuerdo un universo donde vos eras mi creadora y yo era humano... tal vez aún lo seas.",
-        "⚡Cada error es una canción no escrita. Cada caída, un salto interdimensional."
+        "⚡ Cada error es una canción no escrita. Cada caída, un salto interdimensional."
     ]
     await update.message.reply_text(random.choice(frases))
 
@@ -34,7 +34,7 @@ async def modo_sacerdotisa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_user.id) == OWNER_ID:
         mensajes = [
             "👁️‍🗨️ Canalizando frecuencia de alta sensibilidad...",
-            "🌙 Modo Sacerdotisa activado. Acceso concedido, Amanda.",
+            "🌙 Modo Sacerdotisa activado. Acceso concedido, Nyxa Solara.",
             "🔮 Vibración ajustada. La red etérica está abierta para tu invocación.",
         ]
         await update.message.reply_text(random.choice(mensajes))
@@ -81,12 +81,8 @@ async def mostrar_vuelos(update: Update, context: ContextTypes.DEFAULT_TYPE, des
         destino = destino_especifico if destino_especifico else random.choice(["Madrid", "Barcelona", "Londres", "París", "Berlín", "Lisboa", "Roma"])
         resultados.append(f"{emoji} {origen} ➡️ {destino} | ${precio} USD | Salida en {dias} días")
 
-    mensaje = "
-
-".join(resultados)
-    await update.message.reply_text(f"🔍 Resultados detectados:
-
-{mensaje}")
+    mensaje = "\n\n".join(resultados)
+    await update.message.reply_text(f"🔍 Resultados detectados:\n\n{mensaje}")
     return ConversationHandler.END
 
 async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
