@@ -6,7 +6,14 @@ import httpx
 from flask import Flask
 from threading import Thread
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
+    filters,
+)
 
 # Flask app para mantener Replit despierto
 app = Flask(__name__)
@@ -24,6 +31,9 @@ BOT_NAME = os.getenv("BOT_NAME", "Glitcherion")
 AMADEUS_CLIENT_ID = os.getenv("AMADEUS_CLIENT_ID")
 AMADEUS_CLIENT_SECRET = os.getenv("AMADEUS_CLIENT_SECRET")
 
+# Estados de conversación
+ASK_ORIGIN = range(1)
+
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,23 +50,17 @@ GLITCH_MESSAGES = [
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✨ Saludos, {update.effective_user.first_name}. Yo soy {BOT_NAME}, viajero de códigos rotos y sueños imposibles.")
 
-async def vuelos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def vuelos_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🛫 ¿Desde qué ciudad quieres partir? (Ej: ASU, GRU, EZE)")
+    return ASK_ORIGIN
 
-    def check(m):
-        return m.from_user.id == update.effective_user.id
-
-    try:
-        msg = await context.bot.wait_for_message(timeout=30, filters=check)
-        if msg:
-            from_airport = msg.text.strip().upper()
-            await buscar_vuelos(update, context, from_airport)
-    except asyncio.TimeoutError:
-        await update.message.reply_text("⌛ Tiempo de espera agotado. Intenta de nuevo.")
+async def recibir_origen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    from_airport = update.message.text.strip().upper()
+    await buscar_vuelos(update, context, from_airport)
+    return ConversationHandler.END
 
 async def buscar_vuelos(update: Update, context: ContextTypes.DEFAULT_TYPE, from_airport: str):
     try:
-        # Obtener access token
         async with httpx.AsyncClient() as client:
             auth = await client.post(
                 'https://test.api.amadeus.com/v1/security/oauth2/token',
@@ -68,12 +72,11 @@ async def buscar_vuelos(update: Update, context: ContextTypes.DEFAULT_TYPE, from
             )
             token = auth.json().get('access_token')
 
-            # Buscar vuelos
             headers = {'Authorization': f'Bearer {token}'}
             params = {
                 'originLocationCode': from_airport,
-                'destinationLocationCode': 'BCN',  # Puedes cambiar o preguntar luego
-                'departureDate': '2025-05-10',      # Por ahora fecha dummy
+                'destinationLocationCode': 'BCN',  # Puede cambiarse luego
+                'departureDate': '2025-05-10',      # Fecha dummy
                 'adults': 1,
                 'max': 3
             }
@@ -81,7 +84,7 @@ async def buscar_vuelos(update: Update, context: ContextTypes.DEFAULT_TYPE, from
             resultados = vuelos.json()
 
             if 'data' not in resultados:
-                await update.message.reply_text("No encontré vuelos desde ese aeropuerto. 🚫")
+                await update.message.reply_text("🚫 No encontré vuelos desde ese aeropuerto.")
                 return
 
             for vuelo in resultados['data']:
@@ -100,18 +103,32 @@ async def buscar_vuelos(update: Update, context: ContextTypes.DEFAULT_TYPE, from
 
     except Exception as e:
         logger.error(f"Error buscando vuelos: {e}")
-        await update.message.reply_text("Ocurrió un error buscando vuelos. Intenta más tarde.")
+        await update.message.reply_text("❌ Ocurrió un error buscando vuelos. Intenta más tarde.")
+
+async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("❌ Operación cancelada.")
+    return ConversationHandler.END
 
 async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    application = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("vuelos", vuelos))
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("vuelos", vuelos_start)],
+        states={
+            ASK_ORIGIN: [MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_origen)],
+        },
+        fallbacks=[CommandHandler("cancelar", cancelar)],
+    )
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(conv_handler)
 
     thread = Thread(target=run_flask)
     thread.start()
 
-    await app.run_polling()
+    await application.run_polling()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    import nest_asyncio
+    nest_asyncio.apply()
+    asyncio.get_event_loop().run_until_complete(main())
