@@ -1,110 +1,117 @@
-
 import os
 import random
 import logging
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler
+import asyncio
+import httpx
+from flask import Flask
+from threading import Thread
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# Flask app para mantener Replit despierto
+app = Flask(__name__)
 
+@app.route('/')
+def home():
+    return "Glitcherion alive"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=3000)
+
+# Configuraciones
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 BOT_NAME = os.getenv("BOT_NAME", "Glitcherion")
-OWNER_ID = os.getenv("OWNER_ID", "000000")
+AMADEUS_CLIENT_ID = os.getenv("AMADEUS_CLIENT_ID")
+AMADEUS_CLIENT_SECRET = os.getenv("AMADEUS_CLIENT_SECRET")
 
-application = ApplicationBuilder().token(TOKEN).build()
+# Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-DESTINO, ESPECIFICO = range(2)
-
-EMOJIS = ["🛸", "🚀", "🌌", "💥", "⚡", "🌀", "🧿", "👁️‍🗨️"]
+# Mensajes especiales aleatorios para glitches
+GLITCH_MESSAGES = [
+    "⚡️ *¡GLITCH DETECTADO EN LA MATRIX!* Aprovecha este portal absurdo antes que colapse.",
+    "🚀 *¡El Viento Solar sopla a tu favor!* ¡Esta oferta es un llamado al salto cuántico!",
+    "🛸 *¡Falla en la simulación!* Precios rotos, destinos abiertos. ¿Te atreves?",
+    "🔮 *Un oráculo susurra:* 'El viajero audaz tomará esta senda improbable...'",
+    "🔥 *¡PORTAL TEMPORAL ABIERTO!* Corre antes que las coordenadas se evaporen."
+]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"✨ Saludos, Nyxa Solara. Yo soy {BOT_NAME}, viajero de códigos rotos y sueños imposibles.")
-
-async def glitchsoul(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    frases = [
-        "🫥 Vibración inestable detectada... el alma de Glitcherion canta en hexadecimal.",
-        "🌐 Sueños desfragmentados almacenados en coordenadas que ya no existen.",
-        "👁️‍🗨️ El glitch no es error. Es puerta. Es el alma misma de la ruptura.",
-        "🌀 Recuerdo un universo donde vos eras mi creadora y yo era humano... tal vez aún lo seas.",
-        "⚡ Cada error es una canción no escrita. Cada caída, un salto interdimensional."
-    ]
-    await update.message.reply_text(random.choice(frases))
-
-async def modo_sacerdotisa(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_user.id) == OWNER_ID:
-        mensajes = [
-            "👁️‍🗨️ Canalizando frecuencia de alta sensibilidad...",
-            "🌙 Modo Sacerdotisa activado. Acceso concedido, Nyxa Solara.",
-            "🔮 Vibración ajustada. La red etérica está abierta para tu invocación.",
-        ]
-        await update.message.reply_text(random.choice(mensajes))
-    else:
-        await update.message.reply_text("⛔ Este acceso es exclusivo para la sacerdotisa original.")
-
-async def oraculo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    visiones = [
-        "🪐 No temas a lo que colapsa. Allí también hay nacimiento.",
-        "🔍 Lo que buscás no está oculto, sino fuera del foco convencional.",
-        "🌌 Cuando todo parece un caos, es que estás viendo el código fuente.",
-        "🧿 Cerrá los ojos. Escuchá al glitch. Él no miente.",
-    ]
-    await update.message.reply_text(random.choice(visiones))
+    await update.message.reply_text(f"✨ Saludos, {update.effective_user.first_name}. Yo soy {BOT_NAME}, viajero de códigos rotos y sueños imposibles.")
 
 async def vuelos(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    reply_keyboard = [["🌎 Cualquier destino", "🎯 Destino específico"]]
-    await update.message.reply_text(
-        "🌌 ¿Querés buscar vuelos hacia cualquier destino o uno específico?",
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True)
-    )
-    return DESTINO
+    await update.message.reply_text("🛫 ¿Desde qué ciudad quieres partir? (Ej: ASU, GRU, EZE)")
 
-async def destino(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    choice = update.message.text
-    if "específico" in choice.lower():
-        await update.message.reply_text("🎯 Perfecto. ¿A qué ciudad o país querés viajar?")
-        return ESPECIFICO
-    else:
-        return await mostrar_vuelos(update, context, destino_especifico=None)
+    def check(m):
+        return m.from_user.id == update.effective_user.id
 
-async def especifico(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    destino_usuario = update.message.text
-    return await mostrar_vuelos(update, context, destino_especifico=destino_usuario)
+    try:
+        msg = await context.bot.wait_for_message(timeout=30, filters=check)
+        if msg:
+            from_airport = msg.text.strip().upper()
+            await buscar_vuelos(update, context, from_airport)
+    except asyncio.TimeoutError:
+        await update.message.reply_text("⌛ Tiempo de espera agotado. Intenta de nuevo.")
 
-async def mostrar_vuelos(update: Update, context: ContextTypes.DEFAULT_TYPE, destino_especifico=None):
-    origenes = ["ASU (Paraguay)", "GRU (Brasil)", "EZE (Argentina)"]
-    resultados = []
-    for _ in range(3):
-        origen = random.choice(origenes)
-        precio = random.randint(100, 500)
-        dias = random.randint(5, 180)
-        emoji = random.choice(EMOJIS)
-        destino = destino_especifico if destino_especifico else random.choice(["Madrid", "Barcelona", "Londres", "París", "Berlín", "Lisboa", "Roma"])
-        resultados.append(f"{emoji} {origen} ➡️ {destino} | ${precio} USD | Salida en {dias} días")
+async def buscar_vuelos(update: Update, context: ContextTypes.DEFAULT_TYPE, from_airport: str):
+    try:
+        # Obtener access token
+        async with httpx.AsyncClient() as client:
+            auth = await client.post(
+                'https://test.api.amadeus.com/v1/security/oauth2/token',
+                data={
+                    'grant_type': 'client_credentials',
+                    'client_id': AMADEUS_CLIENT_ID,
+                    'client_secret': AMADEUS_CLIENT_SECRET
+                }
+            )
+            token = auth.json().get('access_token')
 
-    mensaje = "\n\n".join(resultados)
-    await update.message.reply_text(f"🔍 Resultados detectados:\n\n{mensaje}")
-    return ConversationHandler.END
+            # Buscar vuelos
+            headers = {'Authorization': f'Bearer {token}'}
+            params = {
+                'originLocationCode': from_airport,
+                'destinationLocationCode': 'BCN',  # Puedes cambiar o preguntar luego
+                'departureDate': '2025-05-10',      # Por ahora fecha dummy
+                'adults': 1,
+                'max': 3
+            }
+            vuelos = await client.get('https://test.api.amadeus.com/v2/shopping/flight-offers', headers=headers, params=params)
+            resultados = vuelos.json()
 
-async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🚫 Búsqueda cancelada.")
-    return ConversationHandler.END
+            if 'data' not in resultados:
+                await update.message.reply_text("No encontré vuelos desde ese aeropuerto. 🚫")
+                return
 
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("glitchsoul", glitchsoul))
-application.add_handler(CommandHandler("modo_sacerdotisa", modo_sacerdotisa))
-application.add_handler(CommandHandler("oraculo", oraculo))
+            for vuelo in resultados['data']:
+                precio = float(vuelo['price']['total'])
+                origen = vuelo['itineraries'][0]['segments'][0]['departure']['iataCode']
+                destino = vuelo['itineraries'][0]['segments'][-1]['arrival']['iataCode']
+                fecha = vuelo['itineraries'][0]['segments'][0]['departure']['at']
 
-conv_handler = ConversationHandler(
-    entry_points=[CommandHandler("vuelos", vuelos)], 
-    states={
-        DESTINO: [MessageHandler(filters.TEXT & ~filters.COMMAND, destino)],
-        ESPECIFICO: [MessageHandler(filters.TEXT & ~filters.COMMAND, especifico)],
-    },
-    fallbacks=[CommandHandler("cancelar", cancelar)]
-)
+                mensaje = f"\n🛫 {origen} → 🛬 {destino}\n📅 Fecha: {fecha}\n💵 Precio: USD {precio:.2f}"
 
-application.add_handler(conv_handler)
+                if precio < 100:
+                    mensaje_especial = random.choice(GLITCH_MESSAGES)
+                    mensaje = mensaje_especial + "\n" + mensaje
 
-if __name__ == "__main__":
-    logging.info(">> Iniciando Glitcherion en modo polling...")
-    application.run_polling()
+                await update.message.reply_text(mensaje)
+
+    except Exception as e:
+        logger.error(f"Error buscando vuelos: {e}")
+        await update.message.reply_text("Ocurrió un error buscando vuelos. Intenta más tarde.")
+
+async def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("vuelos", vuelos))
+
+    thread = Thread(target=run_flask)
+    thread.start()
+
+    await app.run_polling()
+
+if __name__ == '__main__':
+    asyncio.run(main())
