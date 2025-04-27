@@ -14,6 +14,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+from datetime import datetime
 
 # Flask app para mantener Replit despierto
 app = Flask(__name__)
@@ -75,7 +76,7 @@ async def buscar_vuelos(update: Update, context: ContextTypes.DEFAULT_TYPE, from
             headers = {'Authorization': f'Bearer {token}'}
             params = {
                 'originLocationCode': from_airport,
-                'destinationLocationCode': 'BCN',  # Puede cambiarse luego
+                'destinationLocationCode': 'BCN',  # Esto podemos mejorar luego
                 'departureDate': '2025-05-10',      # Fecha dummy
                 'adults': 1,
                 'max': 3
@@ -91,15 +92,29 @@ async def buscar_vuelos(update: Update, context: ContextTypes.DEFAULT_TYPE, from
                 precio = float(vuelo['price']['total'])
                 origen = vuelo['itineraries'][0]['segments'][0]['departure']['iataCode']
                 destino = vuelo['itineraries'][0]['segments'][-1]['arrival']['iataCode']
-                fecha = vuelo['itineraries'][0]['segments'][0]['departure']['at']
+                fecha_raw = vuelo['itineraries'][0]['segments'][0]['departure']['at']
+                numero_vuelo = vuelo['itineraries'][0]['segments'][0]['carrierCode'] + vuelo['itineraries'][0]['segments'][0]['number']
 
-                mensaje = f"\n🛫 {origen} → 🛬 {destino}\n📅 Fecha: {fecha}\n💵 Precio: USD {precio:.2f}"
+                # Formatear fecha
+                fecha_obj = datetime.fromisoformat(fecha_raw)
+                fecha_bonita = fecha_obj.strftime("%d de %B de %Y - %H:%M hs")
+
+                # Generar link automático
+                link = f"https://www.google.com/flights?hl=es#flt={origen}.{destino}.{fecha_obj.date()}"
+
+                mensaje = (
+                    f"🛫 {origen} → 🛬 {destino}\n"
+                    f"📅 Fecha: {fecha_bonita}\n"
+                    f"✈️ Número de vuelo: {numero_vuelo}\n"
+                    f"💵 Precio: USD {precio:.2f}\n"
+                    f"🔗 [Ver en Google Flights]({link})"
+                )
 
                 if precio < 100:
                     mensaje_especial = random.choice(GLITCH_MESSAGES)
-                    mensaje = mensaje_especial + "\n" + mensaje
+                    mensaje = mensaje_especial + "\n\n" + mensaje
 
-                await update.message.reply_text(mensaje)
+                await update.message.reply_markdown(mensaje)
 
     except Exception as e:
         logger.error(f"Error buscando vuelos: {e}")
